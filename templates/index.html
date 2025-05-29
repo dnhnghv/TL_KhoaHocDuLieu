@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>Phân tích cảm xúc Facebook</title>
+  <script src="{{ url_for('static', filename='plotly.min.js') }}"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    #comments { max-height: 300px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; }
+    .comment { margin-bottom: 8px; }
+    .positive { color: green; }
+    .neutral { color: gray; }
+    .negative { color: red; }
+    #summary { margin-top: 20px; padding: 10px; border: 1px solid #ddd; background: #f9f9f9; }
+  </style>
+</head>
+<body>
+  <h1>📊 Phân tích cảm xúc bình luận Facebook</h1>
+  <div id="chart"></div>
+  <p id="info"></p>
+
+  <h2>📝 Danh sách bình luận</h2>
+  <div id="comments"></div>
+
+  <div id="summary"></div>
+
+  <script>
+    async function updateData() {
+      const res = await fetch('/api/comments');
+      const data = await res.json();
+      const labels = ['tích cực', 'trung tính', 'tiêu cực'];
+      const values = labels.map(l => data.counts[l] || 0);
+
+      // Vẽ Pie Chart
+      Plotly.newPlot('chart', [{ values, labels, type: 'pie', hole: 0.4 }], { title: `Tổng bình luận: ${data.total}` });
+
+      // Thời gian cập nhật
+      document.getElementById('info').innerText = `Cập nhật: ${new Date().toLocaleTimeString()}`;
+
+      // Hiển thị danh sách
+      const commentsRes = await fetch('/api/comments/full');
+      const full = await commentsRes.json();
+      const commentsDiv = document.getElementById('comments');
+      commentsDiv.innerHTML = '';
+      full.comments.forEach(c => {
+        const div = document.createElement('div');
+        div.className = 'comment ' + c.label.toLowerCase();
+        div.innerText = `[${new Date(c.created_time).toLocaleTimeString()}] ${c.message}`;
+        commentsDiv.appendChild(div);
+      });
+
+      // Tự động nhận xét
+      const pct = values.map((v, i) => (data.total ? Math.round(v / data.total * 100) : 0));
+      const summary = document.getElementById('summary');
+      let comment;
+      if (pct[0] > 60) comment = 'Phần lớn bình luận mang tính tích cực. Bài viết được đánh giá tốt.';
+      else if (pct[2] > 50) comment = 'Có nhiều phản hồi tiêu cực. Cần xem xét cải thiện nội dung.';
+      else comment = 'Phản hồi khá trung lập hoặc đa chiều.';
+      summary.innerHTML = `
+        <strong>Đánh giá tự động:</strong><br>
+        Tích cực: ${pct[0]}%, Trung tính: ${pct[1]}%, Tiêu cực: ${pct[2]}%<br>
+        Nhận xét: ${comment}
+      `;
+    }
+
+    updateData();
+    setInterval(updateData, 5000);
+  </script>
+</body>
+</html>
